@@ -1,8 +1,12 @@
 .venv/
+**/.venv/
+
 __pycache__/
 *.pyc
+
 .pytest_cache/
 .ruff_cache/
+
 output/
 dead_letter.json
 advanced_text_rpg/savegame.json
