@@ -1,0 +1,14 @@
+[
+  {
+    "row": 4,
+    "error": "1 validation error for SalesRecord\nregion\n  String should have at least 1 character [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_too_short"
+  },
+  {
+    "row": 5,
+    "error": "1 validation error for SalesRecord\namount\n  Input should be greater than 0 [type=greater_than, input_value=-100, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.13/v/greater_than"
+  },
+  {
+    "row": 6,
+    "error": "1 validation error for SalesRecord\namount\n  Input should be a valid number, unable to parse string as a number [type=float_parsing, input_value='abc', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/float_parsing"
+  }
+]
