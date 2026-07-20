@@ -102,7 +102,7 @@ class CountryInfo(BaseModel):
     """국가 정보 검증 규칙"""
     name: str = Field(min_length=1)
     capital: str = Field(min_length=1)
-    region: str
+    region: str = Field(min_length=1)
     population: int = Field(gt=0)
     area: float = Field(gt=0)
 
