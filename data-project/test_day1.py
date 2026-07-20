@@ -9,7 +9,7 @@
 import pytest
 from pydantic import ValidationError
 
-from 광주_3반_박상명_day1 import CountryInfo, WeatherRecord, parse_weather
+from 광주_3반_박상명_Comprehensive_Practice_1 import CountryInfo, WeatherRecord, parse_weather
 
 
 def test_정상_날씨_레코드는_통과한다():
