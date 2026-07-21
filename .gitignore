@@ -14,3 +14,7 @@ advanced_text_rpg/savegame.json
 # 대용량 실습 데이터 (GitHub 50MB 권장 상한 초과) - 실행 전 별도 준비 필요
 data-project/sales_100k.csv
 
+# 개인 시청 기록 (민감 데이터) - 실행 전 본인 계정에서 직접 다운로드 필요
+python_data/NetflixViewingHistory.csv
+advanced02_netflix_analysis/data/NetflixViewingHistory.csv
+

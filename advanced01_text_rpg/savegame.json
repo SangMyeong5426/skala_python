@@ -1,0 +1,37 @@
+{
+  "name": "이름없는용사",
+  "hp": 4,
+  "base_max_hp": 100,
+  "base_attack": 10,
+  "level": 1,
+  "exp": 34,
+  "gold": 8,
+  "potions": {
+    "일반": 4,
+    "고급": 0,
+    "희귀": 0,
+    "영웅": 0,
+    "전설": 0
+  },
+  "equipped": {
+    "무기": null,
+    "투구": null,
+    "상의": null,
+    "하의": {
+      "part": "하의",
+      "grade": "일반",
+      "level": 1,
+      "attack": 0,
+      "hp": 21
+    },
+    "장갑": null,
+    "신발": {
+      "part": "신발",
+      "grade": "일반",
+      "level": 1,
+      "attack": 2,
+      "hp": 12
+    }
+  },
+  "equipment_inventory": []
+}
