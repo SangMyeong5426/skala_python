@@ -1,0 +1,84 @@
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 40px; color: #1a1a2e; }
+  h1 { margin-bottom: 4px; }
+  .meta { color: #888; margin-bottom: 24px; }
+  table { border-collapse: collapse; margin-bottom: 32px; }
+  th, td { border: 1px solid #ccc; padding: 8px 16px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: #831010; color: white; }
+  ul.kpi { list-style: none; padding: 0; display: flex; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+  ul.kpi li { background: #f4f6fb; border-radius: 8px; padding: 16px 24px; }
+  ul.kpi .label { color: #666; font-size: 0.85em; display: block; }
+  ul.kpi .value { font-size: 1.4em; font-weight: bold; }
+  .note { color: #555; font-size: 0.9em; background: #fff8e6; border-left: 3px solid #e0b400; padding: 8px 16px; margin-bottom: 24px; }
+  img.heatmap { max-width: 100%; border: 1px solid #ddd; }
+</style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <p class="meta">생성 시각: {{ generated_at }}</p>
+
+  <h2>핵심 지표</h2>
+  <ul class="kpi">
+    {% for k, v in kpi.items() %}
+    <li><span class="label">{{ k }}</span><span class="value">{{ '{:,}'.format(v) }}</span></li>
+    {% endfor %}
+  </ul>
+
+  <h2>콘텐츠 유형 분류</h2>
+  <table>
+    <tr><th>분류</th><th>레코드 수</th></tr>
+    {% for cat, cnt in category_counts.items() %}
+    <tr><td>{{ cat }}</td><td>{{ '{:,}'.format(cnt) }}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="note">
+    분류 규칙: 같은 제목이 2번 이상 나오면 "시리즈", 1회만 나와도 회차 마커(N화/시즌/파트 등)가
+    있으면 "시리즈", 그 외는 "영화/단편"으로 근사했다. "제목정보없음"은 Netflix 원본 CSV의
+    메타데이터 누락(빈 제목) 레코드다.
+  </p>
+
+  <h2>Top 콘텐츠</h2>
+  {{ top_shows_html | safe }}
+
+  <h2>요일 x 월 시청 패턴</h2>
+  <img class="heatmap" src="data:image/png;base64,{{ heatmap_b64 }}" alt="요일 x 월 히트맵">
+
+  <h2>몰아본 날 Top 5</h2>
+  <table>
+    <tr><th>콘텐츠</th><th>날짜</th><th>당일 시청 화수</th></tr>
+    {% for row in binge_top5 %}
+    <tr><td>{{ row.show_key }}</td><td>{{ row.Date }}</td><td>{{ row.episodes }}</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>통계 검정</h2>
+  <table>
+    <tr><th>검정</th><th>p-value</th><th>유의(p&lt;0.05)</th></tr>
+    <tr>
+      <td>t-검정 (주말 vs 평일 일일 시청량)</td>
+      <td>{{ '%.3e' % stats.t_test_p }}</td>
+      <td>{{ '유의함' if stats.t_test_p < 0.05 else '유의하지 않음' }}</td>
+    </tr>
+    <tr>
+      <td>카이제곱 적합도 (요일별 균등분포 여부)</td>
+      <td>{{ '%.3e' % stats.chi2_p }}</td>
+      <td>{{ '유의함' if stats.chi2_p < 0.05 else '유의하지 않음' }}</td>
+    </tr>
+  </table>
+  <table>
+    <tr><th>요일</th>{% for wd, _ in weekday_counts %}<th>{{ wd }}</th>{% endfor %}</tr>
+    <tr><td>레코드 수</td>{% for _, cnt in weekday_counts %}<td>{{ cnt }}</td>{% endfor %}</tr>
+  </table>
+  <p class="note">
+    해석: t-검정은 "주말과 평일의 하루 평균 시청 레코드 수"를 비교하고, 카이제곱 적합도는
+    "요일별 시청량이 균등한가"를 본다. 둘은 서로 다른 질문이라 결과가 엇갈릴 수 있다
+    (예: 요일별로는 유의하게 차이 나지만, 주말/평일 이분법으로 묶으면 유의하지 않을 수 있음).
+    이는 이 계정 한 명의 개인 기록에 대한 관찰이며 일반적인 시청자 행동으로 일반화할 수 없다.
+  </p>
+</body>
+</html>

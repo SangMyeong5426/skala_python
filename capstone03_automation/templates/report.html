@@ -1,0 +1,46 @@
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 40px; color: #1a1a2e; }
+  h1 { margin-bottom: 4px; }
+  .meta { color: #888; margin-bottom: 24px; }
+  table { border-collapse: collapse; margin-bottom: 32px; }
+  th, td { border: 1px solid #ccc; padding: 8px 16px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: #1F3864; color: white; }
+  ul.kpi { list-style: none; padding: 0; display: flex; gap: 24px; margin-bottom: 32px; }
+  ul.kpi li { background: #f4f6fb; border-radius: 8px; padding: 16px 24px; }
+  ul.kpi .label { color: #666; font-size: 0.85em; display: block; }
+  ul.kpi .value { font-size: 1.4em; font-weight: bold; }
+</style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <p class="meta">생성 시각: {{ generated_at }}</p>
+
+  <h2>핵심 지표</h2>
+  <ul class="kpi">
+    {% for k, v in kpi.items() %}
+    <li><span class="label">{{ k }}</span><span class="value">{{ '{:,}'.format(v) }}</span></li>
+    {% endfor %}
+  </ul>
+
+  <h2>카테고리별 매출 TOP {{ by_category | length }}</h2>
+  <table>
+    <tr><th>카테고리</th><th>매출</th></tr>
+    {% for row in by_category %}
+    <tr><td>{{ row.category }}</td><td>{{ '{:,.0f}'.format(row.amount) }}</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>지역별 매출</h2>
+  <table>
+    <tr><th>지역</th><th>매출</th></tr>
+    {% for row in by_region %}
+    <tr><td>{{ row.region }}</td><td>{{ '{:,.0f}'.format(row.amount) }}</td></tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

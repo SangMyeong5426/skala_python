@@ -29,11 +29,45 @@
       "Bash(.venv/bin/ruff check *)",
       "Bash(.venv/bin/pip freeze *)",
       "Read(//tmp/**)",
-      "Bash(cp /tmp/freeze_new.txt /Users/psm/workspace/skala_python/data-project/requirements.txt && cat /Users/psm/workspace/skala_python/data-project/requirements.txt)"
+      "Bash(cp /tmp/freeze_new.txt /Users/psm/workspace/skala_python/data-project/requirements.txt && cat /Users/psm/workspace/skala_python/data-project/requirements.txt)",
+      "Bash(.venv/bin/pip list *)",
+      "Bash(.venv/bin/python -c \"import jinja2; print\\('jinja2', jinja2.__version__\\)\")",
+      "Bash(.venv/bin/python -c \"import schedule; print\\('schedule ok'\\)\")",
+      "Bash(.venv/bin/pip --version)",
+      "Bash(.venv/bin/python -c \"import pyarrow; print\\('pyarrow', pyarrow.__version__\\)\")",
+      "Bash(.venv/bin/python ex04_pandas_cleaning/solution.py)",
+      "Bash(.venv/bin/ruff format *)",
+      "Bash(.venv/bin/python ex05_polars_duckdb/solution.py)",
+      "Bash(mkdir -p capstone02_eda_ml)",
+      "Bash(.venv/bin/python capstone02_eda_ml/analysis.py)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(.venv/bin/python capstone03_automation/report.py)",
+      "Bash(.venv/bin/python capstone03_automation/run_scheduler.py --mode once)",
+      "Bash(timeout 5 .venv/bin/python capstone03_automation/run_scheduler.py --mode loop --interval 2)",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(.venv/bin/python capstone03_automation/config.py)",
+      "WebFetch(domain:developer.riotgames.com)",
+      "WebSearch",
+      "Bash(mkdir -p /Users/psm/workspace/skala_python/extra_champion_style/templates *)",
+      "Bash(.venv/bin/python -c \"import dotenv; print\\('dotenv ok'\\)\")",
+      "Bash(.venv/bin/python extra_champion_style/config.py)",
+      "Bash(.venv/bin/python -c \"import httpx; print\\('httpx', httpx.__version__\\)\")",
+      "Bash(.venv/bin/python /private/tmp/claude-501/-Users-psm-workspace-skala-python/da924454-2583-4733-a529-3ebd6caa20f0/scratchpad/test_pipeline_offline.py)",
+      "Bash(.venv/bin/python -c \"import pandas, numpy, scipy, seaborn, plotly, jinja2; print\\('ok'\\)\")",
+      "Bash(.venv/bin/python extra_netflix_analysis/analysis.py)",
+      "Bash(.venv/bin/python extra_netflix_analysis/report.py)",
+      "Bash(open /Users/psm/workspace/skala_python/extra_netflix_analysis/output/report_*.html)",
+      "Bash(.venv/bin/python advanced02_netflix_analysis/analysis.py)",
+      "Bash(.venv/bin/python -c \"import polars as pl; print\\(pl.__version__\\)\")",
+      "Bash(.venv/bin/python advanced02_netflix_analysis/report.py)",
+      "Bash(file /Users/psm/workspace/skala_python/advanced02_netflix_analysis/output/report_*.html)",
+      "Bash(open /Users/psm/workspace/skala_python/advanced02_netflix_analysis/output/report_20260721_231611.html)"
     ],
     "additionalDirectories": [
       "/Users/psm/workspace/skala_python/data-project",
-      "/private/tmp"
+      "/private/tmp",
+      "/Users/psm/workspace/skala_python",
+      "/Users/psm/workspace/skala_python/extra_champion_style"
     ]
   }
 }
