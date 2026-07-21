@@ -16,20 +16,6 @@ cd skala_python
 
 ![ex04 실행 결과](screenshot.png)
 
-> `ex04_pandas_cleaning/screenshot.png` 경로로 저장하세요. (정제 전후 비교 · 카테고리별
-> 집계 · 교차표 · CoW 확인 · 체크포인트 통과 메시지가 보이는 화면)
-
-## 결과물에 대한 평가
-
-### 체크포인트 충족 여부
-
-| 가이드 성공 판정 기준 | 실제 결과 | 충족 |
-|---|---|---|
-| 오류 없이 종료 | Traceback 없이 정상 종료 | ✅ |
-| 정제 전후 비교 출력 (결측 개수·max값 등) | 결측 516건 → 0건, unit_price 하한 음수 → 0 이상으로 정리 | ✅ |
-| `groupby` · `pivot_table` 집계 결과 표 출력 | 카테고리별 요약 + region×category 교차표 출력 | ✅ |
-| `df.dtypes` 가 의도한 타입으로 바뀌어 있음 | `order_date=datetime64[us]`, `category=category` | ✅ |
-
 ### 잘된 점
 
 - 정제 순서(진단 → 타입 정규화 → 결측 처리 → 이상치 처리)를 함수 단위(`normalize_types`
