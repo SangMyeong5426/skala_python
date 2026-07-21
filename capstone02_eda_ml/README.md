@@ -25,25 +25,6 @@ cd skala_python
 
 ![capstone02 실행 결과](screenshot.png)
 
-> `capstone02_eda_ml/screenshot.png` 경로로 저장하세요. (통계 검정 p값 · ROC-AUC ·
-> 체크포인트 통과 메시지가 보이는 화면)
-
-### 생성된 시각화
-
-![churn_eda.png](output/churn_eda.png)
-
-## 결과물에 대한 평가
-
-### 체크포인트 충족 여부
-
-| 가이드 성공 판정 기준 | 실제 결과 | 충족 |
-|---|---|---|
-| 오류 없이 종료된다 | Traceback 없이 정상 종료 | ✅ |
-| t-검정·카이제곱 p값이 유의(< 0.05)하게 출력된다 | t-검정 p≈1.23e-20 · 카이제곱 p≈1.32e-70 | ✅ |
-| ROC-AUC가 출력된다 | ROC-AUC = 0.632 | ✅ |
-| `output/`에 Plotly HTML 리포트와 joblib 모델 파일이 생성된다 | `churn_charges.html`, `churn_model.joblib` 생성 확인 | ✅ |
-| `random_state=42` 고정으로 재현 가능 | `train_test_split`·`RandomForestClassifier` 모두 `random_state=42` | ✅ |
-
 ### 잘된 점
 
 - t-검정 p≈1.23e-20, 카이제곱 p≈1.32e-70 이라는 값이 가이드 문서(백정열)의 예시

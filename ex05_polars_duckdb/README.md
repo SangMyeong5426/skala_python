@@ -17,20 +17,6 @@ cd skala_python
 
 ![ex05 실행 결과](screenshot.png)
 
-> `ex05_polars_duckdb/screenshot.png` 경로로 저장하세요. (검증 통과 메시지 · 집계 결과
-> · 벤치마크 표 · Polars 실행 계획이 보이는 화면)
-
-## 결과물에 대한 평가
-
-### 체크포인트 충족 여부
-
-| 가이드 성공 판정 기준 | 실제 결과 | 충족 |
-|---|---|---|
-| 오류 없이 종료 | Traceback 없이 정상 종료 | ✅ |
-| 세 엔진의 집계 결과가 동일함이 검증됨 (`assert_frame_equal`) | 통과 | ✅ |
-| 세 엔진의 실행 시간 비교표 출력 | Polars 15.3ms / DuckDB 77.5ms / Pandas 290.8ms | ✅ |
-| Polars < DuckDB < Pandas 순서 확인 | 위와 동일 순서로 재현됨 | ✅ |
-
 ### 잘된 점
 
 - 세 엔진의 결과를 `event_type` 기준으로 정렬하고 타입을 통일(`astype`)한 뒤
