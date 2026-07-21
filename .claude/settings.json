@@ -5,7 +5,35 @@
       "Bash(python3 -c \"import duckdb\")",
       "Bash(python3 -c \"import pandas\")",
       "Bash(python3 -c \"import pandas; print\\(pandas.__version__\\)\")",
-      "Bash(pip3 show *)"
+      "Bash(pip3 show *)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(python3 -m py_compile text_rpg.py)",
+      "Bash(python3 /private/tmp/claude-501/-Users-psm-workspace-skala-python/cd19473f-6cb9-46e1-b9f3-a14248ab89c9/scratchpad/smoke_test.py)",
+      "Bash(python3 /private/tmp/claude-501/-Users-psm-workspace-skala-python/cd19473f-6cb9-46e1-b9f3-a14248ab89c9/scratchpad/boss_test.py)",
+      "Bash(python3 /private/tmp/claude-501/-Users-psm-workspace-skala-python/cd19473f-6cb9-46e1-b9f3-a14248ab89c9/scratchpad/boss_test2.py)",
+      "Bash(python3 /private/tmp/claude-501/-Users-psm-workspace-skala-python/cd19473f-6cb9-46e1-b9f3-a14248ab89c9/scratchpad/flow_test.py)",
+      "Bash(python3 /private/tmp/claude-501/-Users-psm-workspace-skala-python/cd19473f-6cb9-46e1-b9f3-a14248ab89c9/scratchpad/shop_test.py)",
+      "Bash(git check-ignore *)",
+      "Bash(python3 -c \"import json,pathlib; [json.loads\\(p.read_text\\(\\)\\) for p in pathlib.Path\\('data'\\).glob\\('*.json'\\)]; print\\('json files valid'\\)\")",
+      "Bash(python3 /private/tmp/claude-501/-Users-psm-workspace-skala-python/cd19473f-6cb9-46e1-b9f3-a14248ab89c9/scratchpad/potion_test.py)",
+      "Bash(python3 -c ' *)",
+      "Bash(pip3 list *)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(../.venv/bin/python 광주_3반_박상명_Practice_4.py)",
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(rm -f err.log)",
+      "Bash(.venv/bin/ruff check *)",
+      "Bash(.venv/bin/pip freeze *)",
+      "Read(//tmp/**)",
+      "Bash(cp /tmp/freeze_new.txt /Users/psm/workspace/skala_python/data-project/requirements.txt && cat /Users/psm/workspace/skala_python/data-project/requirements.txt)"
+    ],
+    "additionalDirectories": [
+      "/Users/psm/workspace/skala_python/data-project",
+      "/private/tmp"
     ]
   }
 }

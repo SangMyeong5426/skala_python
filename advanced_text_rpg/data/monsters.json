@@ -1,0 +1,13 @@
+{
+  "monsters": [
+    {"name": "슬라임", "weight": 10, "power": 1.0},
+    {"name": "고블린", "weight": 15, "power": 1.4},
+    {"name": "놀", "weight": 20, "power": 1.9},
+    {"name": "오크", "weight": 20, "power": 2.6},
+    {"name": "트롤", "weight": 10, "power": 3.6},
+    {"name": "오거", "weight": 10, "power": 4.2},
+    {"name": "마족", "weight": 10, "power": 5.5},
+    {"name": "드래곤", "weight": 5, "power": 6.8}
+  ],
+  "boss": {"name": "마왕", "power": 8.0, "level_requirement": 10}
+}
