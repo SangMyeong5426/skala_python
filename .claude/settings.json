@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import polars\")",
+      "Bash(python3 -c \"import duckdb\")",
+      "Bash(python3 -c \"import pandas\")",
+      "Bash(python3 -c \"import pandas; print\\(pandas.__version__\\)\")",
+      "Bash(pip3 show *)"
+    ]
+  }
+}
