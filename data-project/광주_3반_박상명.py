@@ -1,195 +1,229 @@
 """
-프로그램명 : 실습 3 - Pandas EDA · Polars Lazy · DuckDB SQL 비교
+프로그램명 : 실습 4 - 시각화 4종 · 통계 검정(t-test/카이제곱) · sklearn Pipeline
 작성자     : 박상명
 작성일     : 2026-07-21
-설명       : sales_100k.csv를 Pandas로 로드해 기본 EDA를 수행한 뒤 IQR 방법으로 이상치 제거를 진행한다.
-            동일한 region·category 집계를 Pandas(named aggregation) · Polars(Lazy
-            API) · DuckDB(SQL) 세 가지 방식으로 각각 구현한 뒤 timeit으로 실행
-            시간을 비교한다.
+설명       : 실습 3(광주_3반_박상명_Practice_3.py)에서 IQR 이상치를 제거한
+            sales_100k.csv 데이터를 그대로 이어받아,
+              1) 2x2 서브플롯으로 EDA 시각화 4종(분포·박스플롯·월별추이·상관히트맵)
+              2) 서울 vs 부산 t-test로 region x category 카이제곱 검정으로 확인
+              3) ColumnTransformer + Pipeline을 완성하고 훈련·평가·저장·재로딩 수행
+              4) 지역·카테고리별 총매출 Plotly 인터랙티브 막대 차트 저장
+            을 순서대로 수행한다.
 
-[실습 목표]
-  1) Pandas EDA 기초 탐색 + 이상치 처리
-     - df.info(), isnull().sum() 출력
-     - IQR(lo=Q1-1.5*IQR, hi=Q3+1.5*IQR) 범위를 벗어나는 행을 이상치로 제거
-     - 제거 전/후 행 수 출력
-  2) Pandas groupby named aggregation
-     - region·category별 total(총매출)·mean(평균)·cnt(건수)를 named aggregation으로 계산
-     - total 내림차순 정렬
-  3) Polars Lazy API로 동일 집계 작성
-     - scan_csv → filter(1번과 동일한 lo/hi) → group_by → agg → sort → collect
-  4) DuckDB SQL + 세 도구 성능 비교
-     - 동일 집계를 SQL GROUP BY로 작성, .df()로 DataFrame 변환
-     - timeit으로 Pandas·Polars·DuckDB를 동일 반복 횟수(NUMBER_REPEAT)로 측정
+[실습 3 연계]
+  - importlib로 광주_3반_박상명_Practice_3 모듈을 동적 임포트해
+    load_and_clean() / DATA_PATH / pandas_agg() 를 재사용한다.
+  - IQR 이상치 제거된 df_clean 을 4번 실습 전체의 입력 데이터로 사용한다.
+  - region·category groupby(pandas_agg) 결과를 Plotly 차트 데이터로 재사용한다.
 
-[체크포인트 대응]
-  - df.info()/isnull().sum() 출력 + IQR 전후 행 수 출력   → load_and_clean()
-  - total·mean·cnt named aggregation + total 내림차순     → pandas_agg()
-  - scan_csv→filter→group_by→agg→sort→collect 체인        → polars_agg()
-  - 동일 집계 SQL GROUP BY + DataFrame 변환                → duckdb_agg()
-  - 동일 반복 횟수 timeit 비교                             → compare_performance()
-
-[감점 방지 포인트]
-  - named aggregation 사용 (agg({'amount': 'sum'}) 방식 금지)
-  - Polars는 scan_csv(Lazy)만 사용, 반드시 collect()로 마무리 (read_csv 금지)
-  - IQR 공식: lo = Q1 - 1.5*IQR, hi = Q3 + 1.5*IQR (부호 반대로 쓰지 않도록 주의)
-  - timeit 반복 횟수(NUMBER_REPEAT)를 세 도구 모두 동일하게 사용
-
-[입력 데이터] sales_100k.csv (region, category, amount 컬럼 필수)
+[실습 목표 대응]
+  1) EDA 시각화 4종 (2x2 서브플롯)        → plot_eda_grid()
+  2) 통계 검정 - t-test + 카이제곱        → run_statistical_tests()
+  3) sklearn Pipeline 구성 + 저장         → build_and_save_pipeline()
+  4) Plotly 인터랙티브 차트 저장          → save_plotly_chart()
 
 변경내역   : 2026-07-21 최초 작성
 """
 
+import importlib
 import logging
 import sys
-import timeit
 from pathlib import Path
 
-import duckdb
+import joblib
+import matplotlib.pyplot as plt
 import pandas as pd
-import polars as pl
+import plotly.express as px
+import seaborn as sns
+from scipy.stats import chi2_contingency, ttest_ind
+from sklearn.compose import ColumnTransformer
+from sklearn.linear_model import Ridge
+from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 # ─────────────────────────────────────
-# 전역 설정: 파일 경로 상수와 logging
+# 전역 설정: 실습 3 모듈 동적 임포트 + 경로/컬럼 상수
 # ─────────────────────────────────────
-DATA_PATH = Path("sales_100k.csv")
-REQUIRED_COLS = {"region", "category", "amount"}
-GROUP_COLS = ["region", "category"]
-NUMBER_REPEAT = 5  # 세 도구 timeit 비교 시 동일하게 적용할 반복 횟수
+practice3 = importlib.import_module("광주_3반_박상명_Practice_3")
+
+# 차트 한글 글자 깨짐 방지 (macOS 기본 탑재 폰트)
+plt.rcParams["font.family"] = "AppleGothic"
+plt.rcParams["axes.unicode_minus"] = False
+
+EDA_IMG_PATH = Path("eda_4panel.png")
+PIPELINE_PATH = Path("sales_ridge_pipeline.joblib")
+PLOTLY_HTML_PATH = Path("regional_category_sales.html")
+
+NUM_FEATURES = ["quantity", "customer_age"]
+CAT_FEATURES = ["region", "category", "payment_method", "customer_gender"]
+TARGET = "amount"
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s|%(levelname)s|%(message)s",
 )
-logger = logging.getLogger("practice3")
+logger = logging.getLogger("practice4")
 
 
 # ═════════════════════════════════════
-# 1) Pandas EDA 기초 탐색 + 이상치 처리
+# 1) EDA 시각화 4종 (2x2 서브플롯)
 # ─────────────────────────────────────
-# [목표] 파일을 안전하게 읽고 기본 정보를 확인한 뒤, IQR 기준으로 이상치를
-#        제거한다. 여기서 구한 lo/hi는 2)~4)에서 동일한 조건으로 재사용해
-#        세 도구의 집계 결과가 같은 데이터를 대상으로 비교되도록 한다.
-# ═════════════════════════════════════
-def load_and_clean(path: Path) -> tuple[pd.DataFrame, float, float]:
-    """CSV를 로드해 기초 EDA(정보·결측치)를 출력하고, IQR 기준 이상치를
-    제거한 DataFrame과 필터 경계값(lo, hi)을 반환한다."""
+def plot_eda_grid(df_clean: pd.DataFrame) -> None:
+    """히스토그램+KDE·박스플롯·월별 매출 라인·상관 히트맵을 한 figure에 그린다."""
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    # [0,0] amount 분포 (히스토그램 + KDE)
+    sns.histplot(data=df_clean, x="amount", kde=True, ax=axes[0, 0])
+    axes[0, 0].set_title("매출(amount) 분포")
+
+    # [0,1] 지역별 매출 박스플롯
+    sns.boxplot(data=df_clean, x="region", y="amount", ax=axes[0, 1])
+    axes[0, 1].set_title("지역별 매출 분포")
+    axes[0, 1].tick_params(axis="x", rotation=45)
+
+    # [1,0] 월별 매출 추이 라인차트
     try:
-        df = pd.read_csv(path)
-    except FileNotFoundError:
-        logger.error(f"파일 없음: {path} (sales_100k.csv를 프로젝트 폴더에 준비하세요)")
-        raise
-
-    missing = REQUIRED_COLS - set(df.columns)
-    if missing:
-        raise ValueError(f"필수 컬럼 누락: {missing}")
-
-    print(f"\n=== 1) 기초 EDA: {path} ===")
-    df.info()
-
-    print("\n결측치 현황:")
-    print(df.isnull().sum())
-    
-    q1 = df["amount"].quantile(0.25)
-    q3 = df["amount"].quantile(0.75)
-    iqr = q3 - q1
-    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-
-    before = len(df)
-    df_clean = df[df["amount"].between(lo, hi)]
-    after = len(df_clean)
-    print(
-        f"\nIQR 이상치 제거 범위: [{lo:.0f}, {hi:.0f}] "
-        f"→ {before}행 → {after}행 ({before - after}건 제거)"
-    )
-    return df_clean, lo, hi
-
-
-# ═════════════════════════════════════
-# 2) Pandas groupby named aggregation
-# ─────────────────────────────────────
-def pandas_agg(df_clean: pd.DataFrame) -> pd.DataFrame:
-    """region·category별 총매출(total)·평균(mean)·건수(cnt)를
-    named aggregation으로 계산해 총매출 내림차순으로 정렬한다."""
-    return (
-        df_clean.groupby(GROUP_COLS)
-        .agg(total=("amount", "sum"), mean=("amount", "mean"), cnt=("amount", "count"))
-        .reset_index()
-        .sort_values("total", ascending=False)
-    )
-
-
-# ═════════════════════════════════════
-# 3) Polars Lazy API로 동일 집계 작성
-# ─────────────────────────────────────
-def polars_agg(path: Path, lo: float, hi: float) -> pl.DataFrame:
-    """scan_csv(Lazy) → filter → group_by → agg → sort → collect 체인으로
-    Pandas와 동일한 집계를 재현한다."""
-    return (
-        pl.scan_csv(path)
-        .filter(pl.col("amount").is_between(lo, hi))
-        .group_by(GROUP_COLS)
-        .agg(
-            pl.col("amount").sum().alias("total"),
-            pl.col("amount").mean().alias("mean"),
-            pl.col("amount").count().alias("cnt"),
+        order_date = pd.to_datetime(df_clean["order_date"], errors="coerce")
+        monthly = (
+            df_clean.assign(month=order_date.dt.to_period("M").astype(str))
+            .dropna(subset=["month"])
+            .groupby("month")["amount"]
+            .sum()
+            .sort_index()
         )
-        .sort("total", descending=True)
-        .collect()
+        axes[1, 0].plot(monthly.index, monthly.values, marker="o", color="steelblue")
+        axes[1, 0].set_title("월별 총매출 추이")
+        axes[1, 0].tick_params(axis="x", rotation=45)
+    except Exception as e:
+        logger.warning(f"월별 라인차트 생성 실패: {e}")
+        axes[1, 0].set_title("월별 총매출 추이 (데이터 오류)")
+
+    # [1,1] 수치형 컬럼 상관 히트맵
+    num_cols = ["amount", "quantity", "unit_price", "customer_age"]
+    corr = df_clean[num_cols].corr()
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=axes[1, 1])
+    axes[1, 1].set_title("수치형 컬럼 상관관계")
+
+    # 4개 서브플롯 간격 조정 및 저장
+    plt.tight_layout()
+    fig.savefig(EDA_IMG_PATH, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f"EDA 시각화 4종 저장 완료: {EDA_IMG_PATH}")
+
+
+# ═════════════════════════════════════
+# 2) 통계 검정 — t-test + 카이제곱
+# ─────────────────────────────────────
+def run_statistical_tests(df_clean: pd.DataFrame) -> None:
+    """서울 vs 부산 평균 매출 t-test와 region x category 카이제곱 독립성 검정을 수행한다."""
+    print("\n=== 2) 통계 검정 ===")
+
+    # t-test: 서울 vs 부산 평균 매출 차이
+    seoul = df_clean.loc[df_clean["region"] == "서울", "amount"].dropna()
+    busan = df_clean.loc[df_clean["region"] == "부산", "amount"].dropna()
+
+    # 서울, 부산 표본이 없을 경우 검정을 건너뜀
+    if len(seoul) == 0 or len(busan) == 0:
+        logger.warning("서울/부산 표본이 부족해 t-test를 건너뜁니다.")
+    else:
+        t_stat, p_value = ttest_ind(seoul, busan, equal_var=False)
+        verdict = "유의미한 차이 있음" if p_value < 0.05 else "유의미한 차이 없음"
+        print(
+            f"[t-test] 서울(n={len(seoul)}) vs 부산(n={len(busan)}): "
+            f"t={t_stat:.3f}, p={p_value:.4f} → {verdict} (α=0.05 기준)"
+        )
+
+    # 카이제곱: region x category 독립성 검정
+    ct = pd.crosstab(df_clean["region"], df_clean["category"])
+    chi2, p_value_chi, dof, _ = chi2_contingency(ct)
+    verdict_chi = "독립이 아님(연관 있음)" if p_value_chi < 0.05 else "독립(연관 없음)"
+    print(
+        f"[카이제곱] region x category: chi2={chi2:.3f}, dof={dof}, "
+        f"p={p_value_chi:.4f} → {verdict_chi} (α=0.05 기준)"
     )
 
 
 # ═════════════════════════════════════
-# 4) DuckDB SQL + 세 도구 성능 비교
+# 3) sklearn Pipeline 구성 + 저장 + 재로딩
 # ─────────────────────────────────────
-def duckdb_agg(path: Path, lo: float, hi: float) -> pd.DataFrame:
-    """동일 집계를 SQL GROUP BY로 작성하고 결과를 Pandas DataFrame으로 변환한다."""
-    query = f"""
-        SELECT region, category,
-               SUM(amount) AS total,
-               AVG(amount) AS mean,
-               COUNT(*)    AS cnt
-        FROM '{path}'
-        WHERE amount BETWEEN {lo} AND {hi}
-        GROUP BY region, category
-        ORDER BY total DESC
-    """
-    return duckdb.sql(query).df()
+def build_and_save_pipeline(df_clean: pd.DataFrame) -> None:
+    """ColumnTransformer + Ridge 회귀를 Pipeline으로 묶어 학습·평가하고,
+    joblib로 저장한 뒤 다시 불러와 재검증한다.
+    unit_price는 quantity와 곱하면 amount가 그대로 재현되는 결정적 관계라
+    트리비얼한 회귀를 막기 위해 피처에서 제외한다."""
+    use_cols = NUM_FEATURES + CAT_FEATURES + [TARGET]
+    model_df = df_clean[use_cols].dropna()
+    if model_df.empty:
+        logger.error("Pipeline 학습에 사용할 유효한 행이 없습니다.")
+        return
 
+    X = model_df[NUM_FEATURES + CAT_FEATURES]
+    y = model_df[TARGET]
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
 
-def compare_performance(df_clean: pd.DataFrame, path: Path, lo: float, hi: float) -> None:
-    """Pandas·Polars·DuckDB 집계 함수를 동일 반복 횟수(NUMBER_REPEAT=5)로
-    timeit 측정해 실행 시간을 비교 출력한다."""
-    times = {
-        "pandas": timeit.timeit(lambda: pandas_agg(df_clean), number=NUMBER_REPEAT),
-        "polars": timeit.timeit(lambda: polars_agg(path, lo, hi), number=NUMBER_REPEAT),
-        "duckdb": timeit.timeit(lambda: duckdb_agg(path, lo, hi), number=NUMBER_REPEAT),
-    }
-    fastest = min(times.values())
-    print(f"\n=== 4) 성능 비교 (반복 {NUMBER_REPEAT}회 합산 시간, 동일 조건) ===")
-    for name, sec in times.items():
-        print(f"  {name:8s}: {sec:.4f}초  ({sec / fastest:.2f}x)")
+    preprocessor = ColumnTransformer(
+        [
+            ("num", StandardScaler(), NUM_FEATURES),
+            ("cat", OneHotEncoder(handle_unknown="ignore"), CAT_FEATURES),
+        ]
+    )
+    pipeline = Pipeline([("prep", preprocessor), ("reg", Ridge(alpha=1.0))])
+
+    print("\n=== 3) sklearn Pipeline ===")
+    pipeline.fit(X_train, y_train)
+    y_pred = pipeline.predict(X_test)
+    train_r2 = pipeline.score(X_train, y_train)
+    test_r2 = r2_score(y_test, y_pred)
+    print(f"학습 R2={train_r2:.4f}, 테스트 R2={test_r2:.4f}")
+    print(f"예측값 샘플: {y_pred[:3].round(0)}")
+
+    joblib.dump(pipeline, PIPELINE_PATH)
+    logger.info(f"Pipeline 저장 완료: {PIPELINE_PATH}")
+
+    reloaded = joblib.load(PIPELINE_PATH)
+    reload_r2 = r2_score(y_test, reloaded.predict(X_test))
+    print(f"재로딩 후 테스트 R2={reload_r2:.4f} (원본과 일치 여부: {abs(reload_r2 - test_r2) < 1e-9})")
 
 
 # ═════════════════════════════════════
-# main: 전체 파이프라인을 순서대로 실행
+# 4) Plotly 인터랙티브 차트 저장
+# ─────────────────────────────────────
+def save_plotly_chart(df_clean: pd.DataFrame) -> None:
+    """실습 3의 pandas_agg() 결과(region·category별 총매출)를 재사용해
+    인터랙티브 막대 차트를 HTML로 저장한다."""
+    agg_df = practice3.pandas_agg(df_clean)
+    fig = px.bar(
+        agg_df,
+        x="region",
+        y="total",
+        color="category",
+        barmode="group",
+        title="지역·카테고리별 총매출",
+        labels={"total": "총매출", "region": "지역", "category": "카테고리"},
+    )
+    fig.write_html(PLOTLY_HTML_PATH)
+    logger.info(f"Plotly 차트 저장 완료: {PLOTLY_HTML_PATH}")
+
+
+# ═════════════════════════════════════
+# main: 실습 3 데이터 로딩 → 4개 단계 순차 실행
 # ═════════════════════════════════════
 def main() -> None:
-    """로딩·EDA·이상치 제거 → 3개 도구 집계 → 성능 비교 순으로 실행한다."""
+    """실습 3의 load_and_clean()으로 이상치 제거된 데이터를 가져온 뒤
+    시각화 → 통계 검정 → Pipeline → Plotly 순으로 실행한다."""
     try:
-        df_clean, lo, hi = load_and_clean(DATA_PATH)
+        df_clean, _lo, _hi = practice3.load_and_clean(practice3.DATA_PATH)
 
-        print("\n=== 2) Pandas groupby named aggregation (상위 5행) ===")
-        print(pandas_agg(df_clean).head())
+        plot_eda_grid(df_clean)
+        run_statistical_tests(df_clean)
+        build_and_save_pipeline(df_clean)
+        save_plotly_chart(df_clean)
 
-        print("\n=== 3) Polars Lazy API (상위 5행) ===")
-        print(polars_agg(DATA_PATH, lo, hi).head(5))
-
-        print("\n=== 4) DuckDB SQL (상위 5행) ===")
-        print(duckdb_agg(DATA_PATH, lo, hi).head())
-
-        compare_performance(df_clean, DATA_PATH, lo, hi)
-
-        logger.info("실습 3 파이프라인 정상 종료")
+        logger.info("실습 4 파이프라인 정상 종료")
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"데이터 오류로 중단: {e}")
         sys.exit(1)
@@ -198,5 +232,5 @@ def main() -> None:
         sys.exit(1)
 
 
-if __name__ == "__main__":  # 직접 실행할 때만 main()이 동작 (import 시에는 실행 안 됨)
+if __name__ == "__main__":
     main()

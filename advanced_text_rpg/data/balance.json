@@ -1,0 +1,7 @@
+{
+  "attack_growth_per_level": 0.6,
+  "hp_growth_per_level": 2.5,
+  "flee_fail_chance": 0.1,
+  "level_up_hp_gain": 20,
+  "level_up_attack_gain": 5
+}

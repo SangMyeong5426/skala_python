@@ -1,0 +1,9 @@
+{
+  "potions": [
+    {"name": "일반", "heal": 10, "price": 10},
+    {"name": "고급", "heal": 50, "price": 50},
+    {"name": "희귀", "heal": 100, "price": 100},
+    {"name": "영웅", "heal": 250, "price": 250},
+    {"name": "전설", "heal": 500, "price": 500}
+  ]
+}
