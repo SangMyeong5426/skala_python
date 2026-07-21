@@ -11,3 +11,6 @@ output/
 dead_letter.json
 advanced_text_rpg/savegame.json
 
+# 대용량 실습 데이터 (GitHub 50MB 권장 상한 초과) - 실행 전 별도 준비 필요
+data-project/sales_100k.csv
+
