@@ -1,37 +1,195 @@
 {
   "name": "이름없는용사",
-  "hp": 4,
-  "base_max_hp": 100,
-  "base_attack": 10,
-  "level": 1,
-  "exp": 34,
-  "gold": 8,
+  "hp": 823,
+  "base_max_hp": 260,
+  "base_attack": 50,
+  "level": 9,
+  "exp": 33,
+  "gold": 993,
   "potions": {
-    "일반": 4,
+    "일반": 0,
     "고급": 0,
     "희귀": 0,
     "영웅": 0,
-    "전설": 0
+    "전설": 2
   },
   "equipped": {
-    "무기": null,
-    "투구": null,
-    "상의": null,
+    "무기": {
+      "part": "무기",
+      "grade": "희귀",
+      "level": 6,
+      "attack": 16,
+      "hp": 0
+    },
+    "투구": {
+      "part": "투구",
+      "grade": "전설",
+      "level": 8,
+      "attack": 32,
+      "hp": 105
+    },
+    "상의": {
+      "part": "상의",
+      "grade": "영웅",
+      "level": 7,
+      "attack": 0,
+      "hp": 118
+    },
     "하의": {
       "part": "하의",
-      "grade": "일반",
-      "level": 1,
+      "grade": "전설",
+      "level": 5,
       "attack": 0,
-      "hp": 21
+      "hp": 159
     },
-    "장갑": null,
+    "장갑": {
+      "part": "장갑",
+      "grade": "전설",
+      "level": 7,
+      "attack": 35,
+      "hp": 131
+    },
     "신발": {
       "part": "신발",
-      "grade": "일반",
-      "level": 1,
-      "attack": 2,
-      "hp": 12
+      "grade": "영웅",
+      "level": 8,
+      "attack": 24,
+      "hp": 98
     }
   },
-  "equipment_inventory": []
+  "equipment_inventory": [
+    {
+      "part": "투구",
+      "grade": "고급",
+      "level": 8,
+      "attack": 10,
+      "hp": 39
+    },
+    {
+      "part": "상의",
+      "grade": "일반",
+      "level": 8,
+      "attack": 0,
+      "hp": 35
+    },
+    {
+      "part": "하의",
+      "grade": "일반",
+      "level": 8,
+      "attack": 0,
+      "hp": 34
+    },
+    {
+      "part": "신발",
+      "grade": "고급",
+      "level": 8,
+      "attack": 9,
+      "hp": 45
+    },
+    {
+      "part": "장갑",
+      "grade": "일반",
+      "level": 8,
+      "attack": 7,
+      "hp": 27
+    },
+    {
+      "part": "신발",
+      "grade": "일반",
+      "level": 8,
+      "attack": 6,
+      "hp": 26
+    },
+    {
+      "part": "하의",
+      "grade": "일반",
+      "level": 8,
+      "attack": 0,
+      "hp": 33
+    },
+    {
+      "part": "하의",
+      "grade": "희귀",
+      "level": 8,
+      "attack": 0,
+      "hp": 91
+    },
+    {
+      "part": "신발",
+      "grade": "일반",
+      "level": 8,
+      "attack": 7,
+      "hp": 28
+    },
+    {
+      "part": "장갑",
+      "grade": "일반",
+      "level": 8,
+      "attack": 7,
+      "hp": 28
+    },
+    {
+      "part": "장갑",
+      "grade": "일반",
+      "level": 8,
+      "attack": 7,
+      "hp": 25
+    },
+    {
+      "part": "무기",
+      "grade": "일반",
+      "level": 8,
+      "attack": 7,
+      "hp": 0
+    },
+    {
+      "part": "투구",
+      "grade": "일반",
+      "level": 8,
+      "attack": 6,
+      "hp": 24
+    },
+    {
+      "part": "장갑",
+      "grade": "고급",
+      "level": 8,
+      "attack": 10,
+      "hp": 43
+    },
+    {
+      "part": "하의",
+      "grade": "영웅",
+      "level": 8,
+      "attack": 0,
+      "hp": 145
+    },
+    {
+      "part": "무기",
+      "grade": "일반",
+      "level": 8,
+      "attack": 7,
+      "hp": 0
+    },
+    {
+      "part": "하의",
+      "grade": "고급",
+      "level": 8,
+      "attack": 0,
+      "hp": 62
+    },
+    {
+      "part": "상의",
+      "grade": "고급",
+      "level": 9,
+      "attack": 0,
+      "hp": 54
+    },
+    {
+      "part": "상의",
+      "grade": "일반",
+      "level": 9,
+      "attack": 0,
+      "hp": 36
+    }
+  ]
 }
