@@ -156,14 +156,23 @@
       "Bash(pdfimages -png \"/Users/psm/Desktop/광주_3반_박상명_종합실습1_리포트.pdf\" img)",
       "Bash(python3 fetch_live.py)",
       "Bash(python3 build_report_v2.py)",
-      "Bash(python3 build_final.py)"
+      "Bash(python3 build_final.py)",
+      "Bash(psql -d academic_administration_db -c \"SHOW port;\" -c \"SELECT current_user;\" -t)",
+      "Bash(ls -la \"/Users/psm/Downloads/1\\) Full-stack Engineering\\(AI캠퍼스, 4일\\)_4. 스마트 데이터 이해 및 활용_백정열.pdf\")",
+      "Bash(mkdir -p /Users/psm/workspace/skala_python/db02_campushub_join_lab/sql *)",
+      "Bash(psql -d skala_db -c \"\\\\dt lab.*\")",
+      "Bash(psql -d skala_db -v ON_ERROR_STOP=1 -f /Users/psm/workspace/skala_python/db02_campushub_join_lab/sql/03_queries.sql)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Read(//private/tmp/**)",
+      "Bash(rm -f /tmp/query_test_output.txt)"
     ],
     "additionalDirectories": [
       "/Users/psm/workspace/skala_python/data-project",
       "/private/tmp",
       "/Users/psm/workspace/skala_python",
       "/Users/psm/workspace/skala_python/extra_champion_style",
-      "/Users/psm/workspace/skala_python/db01_academic_management"
+      "/Users/psm/workspace/skala_python/db01_academic_management",
+      "/Users/psm/workspace/skala_python/db02_campushub_join_lab"
     ]
   }
 }
