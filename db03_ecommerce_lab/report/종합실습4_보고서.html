@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>종합실습4 보고서</title>
+<style>
+@page { size: A4; margin: 18mm 16mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  color: #1c1c1e;
+}
+.cover {
+  height: 253mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  page-break-after: always;
+}
+.cover .kicker { color: #2563eb; font-weight: 700; letter-spacing: 0.08em; font-size: 11pt; margin-bottom: 12px; }
+.cover h1 { font-size: 30pt; margin: 0 0 10px 0; line-height: 1.25; }
+.cover p.desc { font-size: 12pt; color: #444; max-width: 80%; }
+.cover .meta { margin-top: 40px; display: flex; gap: 48px; }
+.cover .meta div { font-size: 10.5pt; }
+.cover .meta .label { color: #888; font-size: 9pt; margin-bottom: 3px; }
+.toc { page-break-after: always; }
+.toc h1 { font-size: 22pt; }
+.toc ol { font-size: 12pt; line-height: 2.2; }
+h1 {
+  font-size: 18pt;
+  border-bottom: 3px solid #2563eb;
+  padding-bottom: 6px;
+  margin-top: 36px;
+  page-break-before: always;
+}
+h1:first-of-type { page-break-before: avoid; }
+h2 { font-size: 14pt; color: #1d4ed8; margin-top: 26px; border-left: 4px solid #93c5fd; padding-left: 8px; }
+h3 { font-size: 11.5pt; color: #333; margin-top: 18px; }
+p { margin: 8px 0; }
+strong { color: #111; }
+code {
+  background: #f1f3f5;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 9.2pt;
+}
+pre {
+  background: #1e1e2e;
+  color: #e6e6e6;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 8.8pt;
+  line-height: 1.5;
+  page-break-inside: avoid;
+}
+pre code { background: none; color: inherit; padding: 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 9pt;
+  page-break-inside: avoid;
+}
+th, td {
+  border: 1px solid #d0d7de;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+th { background: #eef2ff; }
+img {
+  max-width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin: 6px 0;
+  display: block;
+  page-break-inside: avoid;
+}
+hr { border: none; border-top: 1px solid #e5e7eb; margin: 28px 0; }
+em { color: #555; }
+li { margin: 3px 0; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">E-COMMERCE · ANALYTICS · QUERY TUNING</div>
+  <h1>종합 실습 4<br>ecommerce 매출 분석 및 정리</h1>
+  <p class="desc">전자상거래 주문·상품·고객·재고·리뷰 데이터를 대상으로 매출, RFM, 재구매율, 재고 위험, 쿠폰 효과를 분석하고
+  실행 계획과 인덱스를 이용해 성능을 비교했다.</p>
+  <div class="meta">
+    <div><div class="label">소속</div>광주 3반</div>
+    <div><div class="label">이름</div>박상명</div>
+    <div><div class="label">DBMS</div>PostgreSQL</div>
+  </div>
+</div>
+
+
+<div class="toc">
+  <h1>목차</h1>
+  <ol>
+    <li>10개의 문항별 튜닝 전 쿼리와 결과 화면, 튜닝 후 쿼리와 결과 화면 정리</li>
+    <li>3가지 조인에 대한 차이점 정리 (Hash Join / Nested Loop / Bitmap Heap Scan)</li>
+    <li>Materialized View 생성 스크립트와 실행 후 결과 화면</li>
+    <li>DBMS 엔진별 옵티마이저 조사</li>
+  </ol>
+</div>
+
+<h1 id="1-10">1. 10개 문항별 튜닝 전·후 쿼리와 결과 화면</h1>
+<h2 id="q1-paidshippeddelivered">Q1) 지난 한 달간 실제 팔린 총 금액 (paid+shipped+delivered)</h2>
+<p><strong>쿼리 의도</strong>: <code>orders</code>와 <code>order_items</code>를 조인해 최근 1개월간 paid/shipped/delivered 상태인 주문의 매출 합계를 구한다.</p>
+<p><strong>튜닝 전 문제점</strong>
+<code>WHERE (o.order_ts + INTERVAL '0 seconds') &gt;= now() - INTERVAL '1 month'</code>처럼 인덱스 대상 컬럼(<code>order_ts</code>)에 연산을 걸어 비교했다. 컬럼에 연산이 붙으면 옵티마이저가 인덱스의 Index Cond로 활용하지 못하고 Seq Scan 후 Filter로 처리하게 된다.</p>
+<p><strong>튜닝 내용</strong>
+- <code>CREATE INDEX idx_orders_status_ts ON orders (order_status, order_ts)</code> 복합 인덱스 추가
+- WHERE 절을 <code>o.order_ts &gt;= now() - INTERVAL '1 month'</code>로 되돌려 컬럼을 연산 없이 원본 그대로 비교</p>
+<p><strong>효과</strong>: <code>order_status</code> 등치 조건과 <code>order_ts</code> 범위 조건이 함께 Index Cond로 결합되어 Index Scan(혹은 Bitmap Index Scan)으로 전환, 스캔 대상 행 수가 크게 감소.</p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q1_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q1_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q1_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q1_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q1_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q1_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q2-aov">Q2) 월별 주문수 / 매출 / 평균주문금액 (AOV)</h2>
+<p><strong>쿼리 의도</strong>: 월 단위로 주문 건수, 총 매출, 주문당 평균 금액(AOV)을 집계하는 리포트 쿼리.</p>
+<p><strong>튜닝 전 문제점</strong>
+리포트성 조회임에도 조회할 때마다 <code>orders ⋈ order_items</code> 전체를 조인하고 <code>GROUP BY</code>로 집계한다. 원본 테이블이 커질수록 매번 무거운 조인·집계 비용을 반복해서 지불하게 된다.</p>
+<p><strong>튜닝 내용</strong>
+- <code>mv_daily_gmv</code> Materialized View를 일별 <code>order_cnt</code>/<code>gmv</code>까지 포함하도록 재정의
+- <code>idx_mv_daily_gmv_day</code> 인덱스 추가
+- 조회 쿼리는 원본 테이블 조인 없이 <code>mv_daily_gmv</code>만 스캔해서 월 단위로 재집계(<code>SUM(order_cnt)</code>, <code>SUM(gmv)</code>)</p>
+<p><strong>효과</strong>: 무거운 조인·집계 비용을 MV 갱신(refresh) 시점에 미리 지불해두고, 반복되는 리포트 조회는 훨씬 작은 사전집계 테이블만 스캔하면 되므로 응답 속도가 크게 개선된다. (단, MV는 refresh 전까지는 최신 데이터를 반영하지 못하므로 최신성과 조회속도 사이의 트레이드오프가 존재 — 갱신 주기 설계가 필요)</p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q2_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q2_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q2_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q2_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q2_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q2_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q3-90-top10">Q3) 최근 90일 카테고리 Top10</h2>
+<p><strong>쿼리 의도</strong>: 최근 90일간 카테고리별 매출을 집계해 상위 10개 카테고리를 조회.</p>
+<p><strong>튜닝 전 문제점</strong>
+Q1과 동일하게 <code>(o.order_ts + INTERVAL '0 seconds') &gt;= now() - INTERVAL '90 days'</code> 형태로 컬럼에 연산을 걸어 인덱스를 활용하지 못한다.</p>
+<p><strong>튜닝 내용</strong>
+- 별도 인덱스를 새로 만들지 않고, Q1에서 생성한 <code>idx_orders_status_ts</code>를 그대로 재사용
+- WHERE 절 비교를 <code>o.order_ts &gt;= now() - INTERVAL '90 days'</code>로 원본 컬럼 비교로 되돌림</p>
+<p><strong>효과</strong>: 여러 쿼리가 동일한 필터 패턴(<code>order_status</code> + <code>order_ts</code> 범위)을 공유한다면, 인덱스 하나로 여러 쿼리를 함께 커버할 수 있음을 보여준다 — 인덱스 설계 시 재사용성을 고려해야 하는 사례.</p>
+<p><em>참고: 현재 카테고리 트리는 리프 카테고리가 10개뿐이라 Top10 결과가 전체 카테고리와 같을 수 있음(정상).</em></p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q3_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q3_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q3_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q3_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q3_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q3_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q4-rank-top20">Q4) 제품별 누적매출 RANK() Top20</h2>
+<p><strong>쿼리 의도</strong>: 제품별 누적 매출을 구하고, 매출 기준 순위를 매겨 상위 20개 제품을 조회.</p>
+<p><strong>튜닝 전 문제점</strong>
+"나보다 매출이 큰 제품 수 + 1"을 구하는 상관 서브쿼리(correlated subquery)로 순위를 흉내 냈다. 제품마다 전체 제품 집계 결과를 다시 스캔하므로, 제품 수가 N개면 사실상 O(N²)에 가까운 반복 스캔이 발생한다.</p>
+<p><strong>튜닝 내용</strong>
+- <code>RANK() OVER (ORDER BY SUM(line_total) DESC)</code> 윈도우 함수로 대체해 단일 스캔+정렬로 순위를 계산
+- <code>CREATE INDEX idx_order_items_product_cover ON order_items (product_id) INCLUDE (line_total)</code> 커버링 인덱스 추가</p>
+<p><strong>효과</strong>: O(N²) 상관 서브쿼리 → 단일 스캔·정렬(O(N log N))로 전환되고, 커버링 인덱스 덕분에 Index Only Scan이 가능해져 힙 접근(Heap Fetch)이 제거된다.</p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q4_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q4_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q4_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q4_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q4_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q4_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q5-rfm">Q5) RFM (최근성 / 빈도 / 금액)</h2>
+<p><strong>쿼리 의도</strong>: 고객별로 최근 구매 시점(Recency), 구매 빈도(Frequency), 총 구매 금액(Monetary)을 구한다.</p>
+<p><strong>튜닝 전 문제점</strong>
+<code>orders</code>와 <code>order_items</code>를 통째로 조인한 뒤 고객별로 집계했다. <code>order_items</code>가 <code>orders</code>에 대해 1:N 관계이므로 조인 결과가 fan-out되어, 주문 단위 지표인 recency/frequency까지 부풀려진 행 위에서 계산되고, 이를 바로잡기 위해 <code>COUNT(DISTINCT o.order_id)</code>로 억지로 중복을 제거해야 했다.</p>
+<p><strong>튜닝 내용</strong>
+- recency/frequency는 <code>orders</code> 테이블만으로 먼저 집계(<code>WITH rf</code>)
+- monetary(금액)는 <code>order_items</code>와 조인해 별도로 집계(<code>WITH monetary</code>)
+- 마지막에 고객 단위로 두 결과를 병합</p>
+<p><strong>효과</strong>: fan-out된 결과 위에서 집계하지 않으므로 중간 결과 행 수가 감소하고, <code>DISTINCT</code>로 중복을 걷어내는 우회가 필요 없어진다.</p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q5_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q5_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q5_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q5_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q5_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q5_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q6-30">Q6) 첫 구매 후 30일 내 재구매율</h2>
+<p><strong>쿼리 의도</strong>: 고객의 첫 주문 시각을 기준으로, 30일 이내에 두 번째 주문이 발생한 비율을 계산.</p>
+<p><strong>튜닝 전 문제점</strong>
+고객마다 "첫 주문 이후 최소 주문 시각(다음 주문)"을 구하는 상관 서브쿼리를 반복 실행했다. 고객 수만큼 <code>orders</code>를 반복 스캔하는 N+1 패턴이다.</p>
+<p><strong>튜닝 내용</strong>
+- <code>LEAD(order_ts) OVER (PARTITION BY customer_id ORDER BY order_ts)</code> 윈도우 함수로 고객별 다음 주문 시각을 한 번의 스캔으로 계산
+- <code>ROW_NUMBER() = 1</code>(첫 주문)인 행만 남겨 재구매 여부 판정</p>
+<p><strong>효과</strong>: 반복되는 상관 서브쿼리 스캔이 제거되고, <code>(customer_id, order_ts)</code> 인덱스가 있으면 정렬된 스캔 한 번으로 처리 가능해진다.</p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q6_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q6_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q6_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q6_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q6_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q6_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q7">Q7) 재고 임계치 미달 상품</h2>
+<p><strong>쿼리 의도</strong>: 현재 재고 수량(<code>qty_on_hand</code>)이 재주문 임계치(<code>reorder_point</code>)보다 낮은, 곧 품절될 위험이 있는 상품을 조회.</p>
+<p><strong>튜닝 전 문제점</strong>
+<code>WHERE product_id IN (SELECT product_id FROM inventory WHERE qty_on_hand &lt; reorder_point)</code>처럼 같은 테이블(<code>inventory</code>)을 자기 자신에 대한 서브쿼리로 감싸, 불필요하게 두 번 스캔했다.</p>
+<p><strong>튜닝 내용</strong>
+- 서브쿼리를 제거하고 <code>WHERE qty_on_hand &lt; reorder_point</code> 조건을 직접 적용</p>
+<p><strong>효과</strong>: 테이블 스캔이 1회로 감소한다.</p>
+<p><em>참고: <code>inventory</code>가 약 600행 정도의 소규모 테이블이라, 인덱스를 추가해도 옵티마이저가 여전히 Seq Scan을 선택할 수 있다. 이는 소규모 테이블에서 인덱스 스캔보다 Seq Scan이 더 저렴하게 판단된 정상적인 선택이다.</em></p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q7_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q7_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q7_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q7_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q7_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q7_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q8-45-50">Q8) 리뷰 4.5 이상 &amp; 50개 이상 효자상품</h2>
+<p><strong>쿼리 의도</strong>: 평균 평점 4.5 이상이면서 리뷰 수 50개 이상인, 반응이 좋고 리뷰도 많은 "효자상품"을 조회.</p>
+<p><strong>튜닝 전 문제점</strong>
+상품마다 <code>AVG(rating)</code>, <code>COUNT(*)</code> 상관 서브쿼리를 <code>SELECT</code> 절과 <code>WHERE</code> 절에서 각각 반복 호출했다. 상품 수만큼 <code>reviews</code> 테이블을 반복 스캔하는 N+1 패턴이다.</p>
+<p><strong>튜닝 내용</strong>
+- <code>reviews</code>를 <code>GROUP BY product_id</code>로 한 번에 집계하고 <code>HAVING AVG(rating) &gt;= 4.5 AND COUNT(*) &gt;= 50</code>으로 조건 필터
+- <code>CREATE INDEX idx_reviews_product_cover ON reviews (product_id) INCLUDE (rating)</code> 커버링 인덱스 추가</p>
+<p><strong>효과</strong>: <code>reviews</code> 스캔이 1회로 감소하고, 커버링 인덱스 덕분에 힙 접근 없이 인덱스만으로 집계(Index Only Scan)할 수 있다.</p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q8_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q8_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q8_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q8_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q8_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q8_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q9-vs">Q9) 쿠폰 사용 영향 (쿠폰 사용 주문 vs 미사용 주문 평균금액)</h2>
+<p><strong>쿼리 의도</strong>: 쿠폰을 사용한 주문과 사용하지 않은 주문의 평균 주문 금액을 비교.</p>
+<p><strong>튜닝 전 문제점</strong>
+쿠폰 있음/없음 두 그룹을 각각 별도 쿼리로 작성한 뒤 <code>UNION ALL</code>로 합쳤다. 이 때문에 <code>orders</code>/<code>order_items</code> 조인을 두 번 반복 수행하게 된다.</p>
+<p><strong>튜닝 내용</strong>
+- <code>CASE WHEN o.coupon_code IS NOT NULL THEN 'coupon' ELSE 'no_coupon' END</code>으로 그룹 라벨을 만들고, 한 번의 <code>GROUP BY</code>에서 두 그룹을 동시에 집계
+- <code>CREATE INDEX idx_orders_coupon ON orders (coupon_code)</code> 추가</p>
+<p><strong>효과</strong>: 테이블 스캔이 1회로 줄어 두 그룹을 동시에 계산한다.</p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q9_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q9_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q9_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q9_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q9_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q9_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="q10-1-60">Q10) 상위 1% 고객의 최근 60일 매출</h2>
+<p><strong>쿼리 의도</strong>: 누적 매출 기준 상위 1% 고객을 가려내고, 이들의 최근 60일 매출을 조회.</p>
+<p><strong>튜닝 전 문제점</strong>
+전체 고객 매출 계산, 백분위(<code>PERCENTILE_CONT(0.99)</code>) 계산, 최근 60일 매출 계산이 한 쿼리 안에 뒤섞여 있어, 최종적으로는 상위 1%에 들지 못하는 고객들까지 전부 조인·집계한 뒤에야 필터링되는 비효율이 있었다.</p>
+<p><strong>튜닝 내용</strong>
+- <code>PERCENT_RANK() OVER (ORDER BY SUM(line_total) DESC)</code>로 상위 1% 고객 집합(<code>top_customers</code>)을 CTE로 먼저 확정
+- 확정된 소수의 고객에 대해서만 최근 60일 매출을 다시 조회</p>
+<p><strong>효과</strong>: 최종적으로 필요한 소수 고객 집합만 재스캔하면 되므로, 처리해야 하는 데이터량이 대폭 감소한다.</p>
+<p><em>검증: <code>customer_id</code>가 대부분 1~30 사이로 나와야 정상 (seed 데이터의 heavy customer들).</em></p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>결과 확인 (튜닝 전/후 공통)</td>
+<td><img alt="q10_result" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q10_Result.png"></td>
+</tr>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q10_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q10_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q10_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q10_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<hr />
+<h2 id="2-3-hash-join-nested-loop-bitmap-heap-scan">2. 3가지 조인에 대한 차이점 정리: Hash Join / Nested Loop / Bitmap Heap Scan</h2>
+<p>먼저 짚어야 할 점: <strong>Hash Join과 Nested Loop Join은 "두 릴레이션을 어떻게 결합할지"를 결정하는 조인 알고리즘</strong>이고, <strong>Bitmap Heap Scan은 "한 테이블에서 행을 어떻게 읽어올지"를 결정하는 스캔(접근) 방식</strong>이다. 성격이 다른 개념이지만, Bitmap Heap Scan은 실제로는 Hash Join·Nested Loop의 입력 쪽에서 자주 함께 등장하기 때문에 실행계획을 읽을 때는 세트로 이해하는 것이 실용적이다.</p>
+<h3 id="2-1">2-1. 개념 정리</h3>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>동작 방식</th>
+<th>유리한 상황</th>
+<th>불리한 상황</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Hash Join</strong></td>
+<td>두 릴레이션 중 작은 쪽으로 해시 테이블을 메모리에 만든 뒤(Hash), 큰 쪽을 한 번 스캔하며 해시 테이블에 프로브(probe)</td>
+<td>동등 조인(equi-join)이고, 조인 키에 쓸만한 인덱스가 없거나 양쪽 다 대용량일 때</td>
+<td><code>work_mem</code>이 부족해 해시 테이블이 여러 배치(Batch)로 나뉘어 디스크를 쓸 때, 비동등 조인일 때</td>
+</tr>
+<tr>
+<td><strong>Nested Loop Join</strong></td>
+<td>외부(outer) 릴레이션의 각 행마다 내부(inner) 릴레이션을 반복 스캔(또는 인덱스로 탐색)</td>
+<td>outer 쪽 행 수가 적고(필터로 크게 좁혀졌고), inner 쪽 조인 키에 인덱스가 있을 때</td>
+<td>outer/inner 모두 행 수가 많고 inner에 인덱스가 없을 때 → 반복 횟수만큼 비용이 곱해짐</td>
+</tr>
+<tr>
+<td><strong>Bitmap Heap Scan</strong></td>
+<td>인덱스에서 조건에 맞는 힙 페이지 위치들을 먼저 비트맵으로 수집(Bitmap Index Scan)한 뒤, 힙 페이지를 물리적 순서로 방문해 실제 행을 가져옴(필요시 Recheck)</td>
+<td>조건에 맞는 행의 비율이 "적음"과 "대부분"의 중간 정도라 Index Scan(랜덤 I/O 과다)도 Seq Scan(전체 스캔)도 최선이 아닐 때</td>
+<td>조건에 맞는 행이 거의 없으면 Index Scan이, 대부분이면 Seq Scan이 더 나음</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-2">2-2. 본 실습에서 실제로 관측된 사례</h3>
+<p><strong>Hash Join</strong> — <code>orders</code>와 <code>order_items</code>처럼 조인 키(<code>order_id</code>)에 전용 인덱스가 없고 양쪽 다 수천\~수만 행인 동등 조인에서는 튜닝 전/후 가릴 것 없이 항상 Hash Join이 선택되었다.</p>
+<table>
+<thead>
+<tr>
+<th>문항</th>
+<th>Hash Cond</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q1</td>
+<td><code>oi.order_id = o.order_id</code></td>
+<td><img alt="q1_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q1_After_Tuning.png"></td>
+</tr>
+<tr>
+<td>Q2</td>
+<td><code>oi.order_id = o.order_id</code> (튜닝 전)</td>
+<td><img alt="q2_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q2_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>Q3</td>
+<td><code>oi.order_id = o.order_id</code>, <code>c.parent_id = r_1.category_id</code></td>
+<td><img alt="q3_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q3_After_Tuning.png"></td>
+</tr>
+<tr>
+<td>Q5</td>
+<td><code>o.customer_id = orders.customer_id</code> (rf ⋈ monetary)</td>
+<td><img alt="q5_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q5_After_Tuning.png"></td>
+</tr>
+<tr>
+<td>Q7</td>
+<td><code>inventory.product_id = inventory_1.product_id</code> (튜닝 전, 자기 자신과 조인)</td>
+<td><img alt="q7_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q7_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>Q9</td>
+<td><code>oi.order_id = o_1.order_id</code></td>
+<td><img alt="q9_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q9_After_Tuning.png"></td>
+</tr>
+<tr>
+<td>Q10</td>
+<td><code>oi.order_id = o.order_id</code></td>
+<td><img alt="q10_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q10_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Bitmap Heap Scan</strong> — 단일 테이블에서 조건에 맞는 행의 비율이 중간 정도일 때 등장했다. 대표적으로 Q1 튜닝 전/후 비교에서 그 역할이 뚜렷하게 드러난다.</p>
+<ul>
+<li>Q1 튜닝 전: <code>Seq Scan on orders</code> + <code>Filter</code>로 2,456행을 다 읽고서 조건에 안 맞는 것을 걸러냄 (Rows Removed by Filter: 767)</li>
+<li>Q1 튜닝 후: <code>idx_orders_status_ts</code> 추가 후 <code>Bitmap Index Scan on idx_orders_status_ts</code>로 조건에 맞는 페이지 위치를 먼저 찾고, <code>Bitmap Heap Scan on orders</code>로 그 페이지들만 방문 (Heap Blocks: exact=100)</li>
+<li><strong>중요한 관찰</strong>: 이때도 <strong>상위 조인 방식은 Hash Join 그대로 유지</strong>되었다 — 즉 인덱스 튜닝이 바꾼 것은 "조인 알고리즘"이 아니라 "조인에 넘겨줄 입력 행을 Hash Join에게 더 싸게 공급하는 스캔 방식"이었다. (<img alt="q1_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q1_Before_Tuning.png"> → <img alt="q1_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q1_After_Tuning.png">)</li>
+<li>Q3 튜닝 후에도 카테고리 트리의 루트 노드를 찾는 부분에서 <code>Bitmap Heap Scan on categories</code> + <code>Bitmap Index Scan on idx_categories_parent</code>가 동일한 패턴으로 등장 (<img alt="q3_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q3_After_Tuning.png">)</li>
+</ul>
+<p><strong>Nested Loop Join</strong> — 이번 실습에서 캡처한 20개의 실행계획(Q1~Q10 튜닝 전/후) 전체를 다시 확인한 결과, <strong>명시적인 Nested Loop 노드는 한 건도 관측되지 않았다.</strong></p>
+<ul>
+<li><strong>직접적인 이유(쿼리 구조)</strong>: Nested Loop이 나오려면 애초에 outer 쪽 결과가 소수로 좁혀진 뒤 inner 테이블과 PK/인덱스로 다시 조인하는 지점이 쿼리에 있어야 한다. 그런데 Q1~Q10의 조인은 전부 <code>orders ⋈ order_items</code>(또는 <code>products</code>, <code>categories</code>)처럼 양쪽 다 수천\~수만 행인 동등 조인이고, 상위 1% 고객처럼 결과가 극소수로 좁혀지는 Q10조차 <code>customers</code> 테이블을 다시 조인하지 않고 <code>customer_id</code>와 매출만 반환하도록 작성했다. 즉 "소수 결과 → PK로 재조회"하는 지점 자체가 우리 쿼리들에는 없었다.</li>
+<li><strong>간접적인 이유(옵티마이저 판단)</strong>: 설사 그런 조인이 있었더라도, <code>order_items.order_id</code>에는 조인 전용 단일 인덱스(<code>idx_order_items_order</code>)만 있고 outer 쪽 행 수 자체가 충분히 작아지지 않는 한 옵티마이저는 Hash Join을 항상 더 저렴하다고 판단한다.</li>
+<li>Q8처럼 상품마다 리뷰 통계를 반복 조회하는 상관 서브쿼리(before)는 언뜻 "행마다 반복"이라는 점에서 Nested Loop과 비슷해 보이지만, 실제 플랜에서는 <code>SubPlan</code>/<code>InitPlan</code> 형태로 표시되며 명시적 <code>Nested Loop</code> 조인 노드는 아니었다 (<img alt="q8_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q8_Before_Tuning.png">).</li>
+<li><strong>언제 나타나는가</strong>: Q10을 "상위 1% 고객의 customer_id + 이름/이메일까지" 조회하도록 바꿔서 <code>top_customers</code>(소수 행)를 <code>customers</code> 테이블과 PK로 다시 JOIN하면, outer가 이미 극소수로 좁혀져 있고 inner(<code>customers</code>)에 PK 인덱스가 있으므로 Nested Loop Join이 선택될 조건이 된다. 즉 Nested Loop을 관측하지 못한 것은 "데이터가 부족해서"가 아니라 "우리 쿼리가 그런 조인을 요구하지 않아서"이다.</li>
+</ul>
+<h3 id="2-3">2-3. 요약</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Hash Join</th>
+<th>Nested Loop</th>
+<th>Bitmap Heap Scan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>분류</td>
+<td>조인 알고리즘</td>
+<td>조인 알고리즘</td>
+<td>(단일 테이블) 스캔 방식</td>
+</tr>
+<tr>
+<td>본 실습 관측 여부</td>
+<td>관측됨 (모든 다중 테이블 조인)</td>
+<td>관측 안 됨</td>
+<td>관측됨 (인덱스 추가 후 등치+범위 조건 스캔)</td>
+</tr>
+<tr>
+<td>관측 안 된 이유</td>
+<td>—</td>
+<td>쿼리에 "소수 결과 → PK 재조회" 지점이 없었음 (Q10이 customers를 조인하지 않음)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-materialized-view">3. Materialized View 생성 스크립트와 실행 후 결과 화면</h2>
+<h3 id="3-1">3-1. 생성 스크립트</h3>
+<p>Q2에서 사용한 <code>mv_daily_gmv</code>는 일별 주문수(<code>order_cnt</code>)와 매출(<code>gmv</code>)을 사전 집계해두는 Materialized View다. (원본 스키마의 <code>mv_daily_gmv</code>는 <code>day</code>/<code>gmv</code>뿐이라 Q2가 요구하는 주문수·AOV까지 커버하도록 재정의했다.)</p>
+<pre><code class="language-sql">DROP MATERIALIZED VIEW IF EXISTS mv_daily_gmv;
+CREATE MATERIALIZED VIEW mv_daily_gmv AS
+SELECT date_trunc('day', o.order_ts) AS day,
+       COUNT(DISTINCT o.order_id) AS order_cnt,
+       SUM(oi.line_total) AS gmv
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.order_id
+WHERE o.order_status IN ('paid','shipped','delivered')
+GROUP BY 1;
+CREATE INDEX IF NOT EXISTS idx_mv_daily_gmv_day ON mv_daily_gmv (day);
+</code></pre>
+<h3 id="3-2">3-2. 리포트 질의 가속 효과 (실측)</h3>
+<p>Q2 EXPLAIN ANALYZE 캡처를 비교하면 가속 효과가 수치로 확인된다.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>실행 계획 요약</th>
+<th>실행 시간</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>튜닝 전 (원본 조인)</td>
+<td><code>orders</code>(Seq Scan, Filter로 2,313행 제거) ⋈ <code>order_items</code>(Seq Scan, 26,144행) → Hash Join → Sort → GroupAggregate</td>
+<td><strong>23.251 ms</strong></td>
+</tr>
+<tr>
+<td>튜닝 후 (MV 스캔)</td>
+<td><code>mv_daily_gmv</code>(Seq Scan, 123행) → HashAggregate → Sort</td>
+<td><strong>0.112 ms</strong></td>
+</tr>
+</tbody>
+</table>
+<p>→ 약 <strong>207배</strong> 실행 시간 단축 (23.251ms → 0.112ms). 원본 조인이 매번 26,144행짜리 <code>order_items</code>를 스캔해야 했던 것에 비해, MV는 이미 하루 단위로 집계된 123행만 스캔하면 되기 때문이다.</p>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>튜닝 전 EXPLAIN ANALYZE</td>
+<td><img alt="q2_before" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q2_Before_Tuning.png"></td>
+</tr>
+<tr>
+<td>튜닝 후 EXPLAIN ANALYZE</td>
+<td><img alt="q2_after" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/q2_After_Tuning.png"></td>
+</tr>
+</tbody>
+</table>
+<h3 id="3-3-refresh">3-3. 갱신(REFRESH) 전략 검토</h3>
+<p>Materialized View는 스냅샷이라 원본 데이터(<code>orders</code>, <code>order_items</code>)가 바뀌어도 자동으로 최신화되지 않는다는 트레이드오프가 있다. 요구사항(오후 3시 기준 갱신)에 맞춰 다음과 같이 설계한다.</p>
+<ul>
+<li><strong>주기</strong>: 매일 15:00 1회 <code>REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_gmv;</code> 실행</li>
+<li><code>CONCURRENTLY</code> 옵션을 쓰면 갱신 중에도 기존 데이터로 조회가 계속 가능(락 없이 갱신)하지만, 대상 뷰에 <strong>UNIQUE 인덱스가 반드시 있어야</strong> 하므로 <code>day</code> 컬럼에 <code>CREATE UNIQUE INDEX</code>를 추가해야 한다.</li>
+<li><strong>시점 선택 이유</strong>: 오전 중 발생한 당일 주문·취소·환불 처리가 오후 3시경 대부분 반영된다고 가정, 하루 한 번의 갱신으로 "리포트용 데이터 최신성"과 "조회 성능" 사이를 절충한다. 실시간성이 필요 없는 일별/월별 리포트(Q2)이므로 하루 1회 갱신으로 충분하다.</li>
+<li><strong>자동화 수단</strong>: <code>pg_cron</code> 확장을 이용해 <code>SELECT cron.schedule('refresh_mv_daily_gmv', '0 15 * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_gmv');</code>로 스케줄링하거나, Airflow 등 외부 스케줄러에서 동일 SQL을 실행하도록 등록한다.</li>
+<li><strong>한계</strong>: 갱신 주기 동안(최대 24시간) 최신 주문이 리포트에 반영되지 않는다. "당일 실시간 매출"처럼 최신성이 중요한 요구(Q1)에는 MV 대신 인덱스 튜닝(Q1 방식)을 쓰고, "월별 트렌드"처럼 약간의 지연이 허용되는 리포트(Q2)에만 MV를 적용하는 것이 적절하다.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>스크린샷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MV 생성 스크립트 실행 화면</td>
+<td><img alt="mv_create" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/mv_create.png"></td>
+</tr>
+<tr>
+<td>MV 조회 결과 화면 (<code>SELECT * FROM mv_daily_gmv ORDER BY day LIMIT 10;</code>)</td>
+<td><img alt="mv_select" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/mv_select_result.png"></td>
+</tr>
+<tr>
+<td>REFRESH 실행 화면 (선택)</td>
+<td><img alt="mv_refresh" src="file:///Users/psm/workspace/skala_python/db03_ecommerce_lab/report/screenshot/mv_refresh.png"></td>
+</tr>
+</tbody>
+</table>
+<p><em>(위 3개는 아직 캡처가 없어 자리만 비워둔 상태입니다. <code>report/screenshot/</code> 폴더에 위 파일명 그대로 저장하면 자동으로 표시됩니다.)</em></p>
+<hr />
+<h2 id="4-dbms-postgres-mysql-oracle-sql-server">4. DBMS 엔진별 옵티마이저 조사 (Postgres / MySQL / Oracle / SQL Server)</h2>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>PostgreSQL</th>
+<th>MySQL (InnoDB)</th>
+<th>Oracle</th>
+<th>SQL Server</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>옵티마이저 유형</td>
+<td>Cost-Based Optimizer (CBO)</td>
+<td>CBO</td>
+<td>CBO (통계 기반 + 적응형 최적화)</td>
+<td>CBO</td>
+</tr>
+<tr>
+<td>통계 수집</td>
+<td><code>ANALYZE</code> / autovacuum가 자동 실행</td>
+<td><code>ANALYZE TABLE</code>, 8.0+ 히스토그램 지원</td>
+<td><code>DBMS_STATS</code> 자동 잡(기본 활성화)</td>
+<td>자동 통계 업데이트(기본 활성화)</td>
+</tr>
+<tr>
+<td>지원 조인 알고리즘</td>
+<td>Nested Loop / Hash Join / Merge Join</td>
+<td>주로 Block Nested Loop, 8.0.18+부터 Hash Join 지원</td>
+<td>Nested Loop / Hash Join / Sort-Merge Join + 파티션와이즈 조인</td>
+<td>Nested Loop / Hash Join / Merge Join</td>
+</tr>
+<tr>
+<td>실행계획 확인</td>
+<td><code>EXPLAIN (ANALYZE, BUFFERS)</code>, <code>EXPLAIN (FORMAT JSON)</code></td>
+<td><code>EXPLAIN</code>, <code>EXPLAIN ANALYZE</code>(8.0.18+), <code>EXPLAIN FORMAT=JSON</code></td>
+<td><code>EXPLAIN PLAN FOR</code> + <code>DBMS_XPLAN.DISPLAY</code>, SQL Trace</td>
+<td><code>SET STATISTICS PROFILE/IO/TIME ON</code>, Actual Execution Plan(그래픽)</td>
+</tr>
+<tr>
+<td>옵티마이저 힌트</td>
+<td>공식 힌트 없음(철학적으로 지양), <code>pg_hint_plan</code> 확장으로 우회 가능</td>
+<td><code>/*+ ... */</code> 옵티마이저 힌트 공식 지원(5.7+)</td>
+<td><code>/*+ ... */</code> 힌트가 매우 풍부하고 세밀하게 제어 가능</td>
+<td><code>OPTION (...)</code> 쿼리 힌트, <code>LOOP JOIN</code> 등 조인 힌트 지원</td>
+</tr>
+<tr>
+<td>Materialized View</td>
+<td>수동/스케줄 <code>REFRESH</code> 필요(자동 쿼리 재작성 없음)</td>
+<td>공식 미지원(트리거/이벤트 스케줄러로 흉내)</td>
+<td>Materialized View + <strong>Query Rewrite</strong> 자동 지원(원본 쿼리를 옵티마이저가 자동으로 MV로 치환)</td>
+<td>Indexed View(제약 조건이 까다로움)로 유사 기능 제공</td>
+</tr>
+<tr>
+<td>플랜 캐싱</td>
+<td>Prepared Statement 캐싱, 5회 이후 제네릭/커스텀 플랜 중 유리한 쪽 자동 선택</td>
+<td>8.0부터 쿼리 캐시 제거, 매번 재수립이 기본</td>
+<td>Shared Pool에 커서 캐싱, Bind Peeking으로 파라미터 값 기반 최적화</td>
+<td>Plan Cache 사용, Parameter Sniffing 이슈 존재(첫 실행 파라미터로 플랜 고정)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>본 실습과의 연결점</strong></p>
+<ul>
+<li>이번 실습은 PostgreSQL 기준으로 진행했지만, "조인 키에 인덱스가 없는 대용량 동등 조인 → Hash Join 선택"이라는 패턴(2절)은 MySQL 8.0.18+/Oracle/SQL Server에서도 유사하게 나타난다.</li>
+<li>다만 Oracle은 Materialized View에 대해 옵티마이저가 원본 쿼리를 자동으로 MV로 치환해주는 <strong>Query Rewrite</strong> 기능이 있어, Q2처럼 사람이 직접 쿼리를 <code>mv_daily_gmv</code> 참조로 바꿔주지 않아도 되는 차이가 있다. PostgreSQL은 이 자동 치환 기능이 없어 애플리케이션/쿼리 단에서 명시적으로 MV를 참조하도록 바꿔야 한다.</li>
+<li>MySQL은 8.0.18 이전까지 Hash Join을 지원하지 않아 <code>order_items</code> 같은 대용량 동등 조인에서도 Block Nested Loop을 강제로 써야 했던 버전 차이가 있다 — 즉 동일한 쿼리·데이터라도 MySQL 버전에 따라 이번 실습에서 관측한 것과 다른(더 느린) 조인 전략이 선택될 수 있다.</li>
+</ul>
+<hr />
+<h1 id="_1">부록: 전체 튜닝 패턴 요약</h1>
+<table>
+<thead>
+<tr>
+<th>패턴</th>
+<th>해당 문항</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>인덱스 컬럼에 연산 적용 금지 → 원본 컬럼 비교 + 복합 인덱스</td>
+<td>Q1, Q3</td>
+</tr>
+<tr>
+<td>상관 서브쿼리(N+1) → 윈도우 함수로 단일 스캔 전환</td>
+<td>Q4, Q6, Q8</td>
+</tr>
+<tr>
+<td>반복 조회되는 집계를 Materialized View로 사전 계산</td>
+<td>Q2</td>
+</tr>
+<tr>
+<td>불필요한 fan-out/중복 스캔 제거 (선집계, 서브쿼리 제거, UNION→CASE)</td>
+<td>Q5, Q7, Q9</td>
+</tr>
+<tr>
+<td>전체 스캔 후 필터링 → 대상 집합을 먼저 좁힌 뒤 재조회</td>
+<td>Q10</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
