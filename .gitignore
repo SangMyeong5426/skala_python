@@ -18,3 +18,6 @@ data-project/sales_100k.csv
 python_data/NetflixViewingHistory.csv
 advanced02_netflix_analysis/data/NetflixViewingHistory.csv
 
+
+# macOS
+.DS_Store
